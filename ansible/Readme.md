@@ -1,20 +1,16 @@
 # Ansible Configuration
 
-Infrastructure-as-code automation for Ubuntu 24.04 VMs in two phases:
+Universal infrastructure-as-code setup for Ubuntu 24.04 VMs created by Terraform.
 
-1. **Pre-Kubespray Phase** (this folder) - Prepare infrastructure
-   - User management (ansible-deploy, zanzibar)
-   - Base packages, timezone, keyboard layout
-   - Firewall (SSH access only)
-   - Fail2Ban (brute-force protection)
+This Ansible playbook handles:
+- ✅ User management (ansible-deploy, zanzibar)
+- ✅ Base packages, timezone, keyboard layout
+- ✅ SSH firewall (fail2ban-protected)
+- ✅ Fail2Ban (brute-force protection)
 
-2. **Kubespray Phase** (external) - Deploy Kubernetes
-   - Handles: swap, kernel modules, sysctl, container runtime, CNI, cluster orchestration
-   - See [Kubespray Integration](#kubespray-integration)
+**This Ansible setup does NOT know or care about Kubernetes.** VMs can be used for any purpose.
 
-3. **Post-Kubespray Phase** (this folder) - Verify deployment
-   - Confirm all K8s components running
-   - Check sysctl, kernel modules, swap settings
+For Kubernetes deployment on these prepared VMs, use [Kubespray](https://kubespray.io/) with its own inventory and configuration.
 
 ## Structure
 
@@ -22,42 +18,41 @@ Infrastructure-as-code automation for Ubuntu 24.04 VMs in two phases:
 ansible/
 ├── ansible.cfg              # Ansible configuration
 ├── inventory/
-│   └── hosts.yml           # Inventory with hierarchical groups
-├── group_vars/             # Variables per group
-│   ├── all.yml             # Common variables
-│   ├── k8s_cluster.yml     # K8s network config (for Kubespray)
-│   ├── k8s_control_plane.yml  # Control plane variables
-│   └── k8s_workers.yml     # Worker variables
+│   └── hosts.yml           # VM inventory (Terraform-provisioned)
+├── group_vars/
+│   └── all.yml             # Common variables (timezone, packages, firewall)
 ├── playbooks/
-│   ├── site.yml                  # 🎯 MAIN: Pre-Kubespray setup (users, base config)
-│   ├── common.yml                # Base setup for all VMs
-│   ├── pre-kubespray-verify.yml  # ✅ Verify prerequisites before Kubespray
-│   ├── post-kubespray-verify.yml # ✅ Verify Kubespray deployment succeeded
-│   ├── k8s-hardening.yml         # ⚠️ DEPRECATED (Kubespray handles this)
+│   ├── site.yml                  # 🎯 MAIN: Infrastructure setup (run this)
+│   ├── common.yml                # Universal setup for all VMs
 │   ├── setup.yml                 # Legacy (no longer used)
 │   └── test.yml                  # Testing playbook
 └── roles/
     ├── user_management/    # Create ansible-deploy, zanzibar users + sudo
     ├── commons/            # Base packages, timezone, keyboard
     ├── fail2ban/           # SSH brute-force protection
-    ├── firewalld/          # SSH-only firewall (external access)
-    └── k8s_hardening/      # ⚠️ DEPRECATED (Kubespray handles this)
+    └── firewalld/          # SSH-only firewall
 ```
+
+Note: Deprecated files in `group_vars/` and `playbooks/`:
+- `k8s_cluster.yml`, `k8s_control_plane.yml`, `k8s_workers.yml` - ⚠️ Use Kubespray's inventory instead
+- `k8s-hardening.yml` - ⚠️ Kubespray handles Kubernetes hardening
+- `pre-kubespray-verify.yml` - ⚠️ Use Kubespray's validation
+- `post-kubespray-verify.yml` - ⚠️ Use Kubespray's validation
 
 ## Prerequisites
 
-- Ubuntu 24.04 VMs provisioned by Terraform (see [../terraform/Readme.md](../terraform/Readme.md)) using Cloud-Init templates
+- Ubuntu 24.04 VMs provisioned by Terraform (see [../terraform/Readme.md](../terraform/Readme.md))
 - SSH access with ED25519 key (configured in inventory)
 - Python 3 installed on target hosts
 - SSH ProxyJump configured for private network access (see [Network Access](#network-access))
-- **NOT needed**: Kubespray is called separately (not installed in this folder)
-
 
 ## Roles
 
 ### user_management
 
-- Creates `ansible-deploy` user with limited sudo access (Kubernetes operations only)
+- Creates `ansible-deploy` user with limited sudo access
+- Creates `zanzibar` user with full sudo access
+
 - Creates `zanzibar` user with full sudo access (management)
 - Distributes ED25519 SSH keys to both users
 - Configures `/etc/sudoers.d` safely with validation
@@ -83,39 +78,99 @@ ansible/
 - Denies all other inbound traffic by default
 - Internal K8s network traffic is managed by Kubespray (via iptables)
 
-### k8s_hardening (DEPRECATED)
+### fail2ban
 
-⚠️ **This role is no longer used.** Kubespray handles:
-- Disabling swap
-- Loading kernel modules (overlay, br_netfilter)
-- Configuring sysctl for Kubernetes networking
-- Container runtime installation (containerd)
-- CNI plugin configuration
+- Installs and configures Fail2Ban
+- Protects SSH from brute-force attacks
+- Bans offending IPs after configurable retry limit
+- Integration: Firewalld uses fail2ban for SSH protection
 
-See [Kubespray Integration](#kubespray-integration).
+### firewalld
 
-## Usage Workflow
+- Installs and enables firewalld
+- Allows SSH service (fail2ban protects against brute-force)
+- Denies all other inbound traffic by default
+- Can be extended for specific services/ports (see Variables)
 
-### Phase 1: Pre-Kubespray Setup
+## Usage
 
-Prepare infrastructure BEFORE installing Kubernetes:
+### Run infrastructure setup (recommended)
 
 ```bash
 cd ansible
 
-# 1. Verify prerequisites
-ansible-playbook playbooks/pre-kubespray-verify.yml
-
-# 2. Setup base infrastructure (users, packages, firewall, fail2ban)
+# Setup all VMs
 ansible-playbook playbooks/site.yml
 
-# 3. Verify readiness
-ansible-playbook playbooks/pre-kubespray-verify.yml
+# Setup specific group
+ansible-playbook playbooks/site.yml --limit bastion
 ```
 
-### Phase 2: Deploy Kubernetes (Kubespray)
+### Run specific playbooks
 
-Install Kubernetes using Kubespray (external tool):
+**Only base configuration (common.yml):**
+```bash
+ansible-playbook playbooks/common.yml
+```
+
+### Test connectivity
+
+```bash
+# Test all VMs
+ansible all -m ping
+
+# Test specific VMs
+ansible vms -m ping
+```
+
+### Syntax validation
+
+```bash
+ansible-playbook playbooks/site.yml --syntax-check
+ansible-playbook playbooks/common.yml --syntax-check
+```
+
+### Dry run
+
+```bash
+ansible-playbook playbooks/site.yml --check --diff
+```
+
+## Verification
+
+After running playbooks, verify installation:
+
+```bash
+# Check users were created
+ansible all -m ansible.builtin.command -a "id ansible-deploy"
+ansible all -m ansible.builtin.command -a "id zanzibar"
+
+# Check sudoers
+ansible all -m ansible.builtin.command -a "cat /etc/sudoers.d/ansible-deploy" -b
+
+# Check fail2ban
+ansible all -m ansible.builtin.command -a "sudo fail2ban-client status sshd"
+
+# Check firewall
+ansible all -m ansible.builtin.command -a "sudo firewall-cmd --list-services"
+```
+
+## Why Ansible doesn't mention Kubernetes
+
+This Ansible setup is **universal infrastructure provisioning**:
+- ✅ Works for any VM purpose (K8s nodes, app servers, databases, etc.)
+- ✅ Terraform creates VMs without knowing their purpose
+- ✅ Ansible prepares VMs universally
+- ✅ Kubernetes is deployed AFTER infrastructure is ready (via Kubespray)
+
+This separation of concerns ensures:
+- **Flexibility**: Same VMs can be repurposed
+- **Simplicity**: Ansible doesn't assume node roles
+- **Maintainability**: Infrastructure and Kubernetes config are independent
+
+## Kubespray Deployment (Optional)
+
+If you want to deploy Kubernetes on these prepared VMs, use Kubespray:
 
 ```bash
 # Clone Kubespray
@@ -123,37 +178,38 @@ cd ..
 git clone https://github.com/kubernetes-sigs/kubespray.git
 cd kubespray
 
-# Configure Kubespray with your inventory
-cp -rfp ../ansible/inventory . 
-# Edit inventory/group_vars/k8s_cluster/k8s-cluster.yml if needed
+# Kubespray will handle:
+# ✅ Swap disable
+# ✅ Kernel module loading
+# ✅ Sysctl tuning
+# ✅ Container runtime (containerd)
+# ✅ Kubernetes cluster initialization
+# ✅ CNI plugin configuration
 
-# Deploy cluster
-ansible-playbook -i inventory/hosts.yml cluster.yml
+# Deploy
+ansible-playbook -i ../ansible/inventory/hosts.yml cluster.yml
 ```
 
-ℹ️ Reference: [Kubespray Documentation](https://kubespray.io/)
-
-### Phase 3: Post-Kubespray Verification
-
-Verify all K8s components installed and configured:
-
-```bash
-cd ../ansible
-
-# Verify Kubespray deployment succeeded
-ansible-playbook playbooks/post-kubespray-verify.yml
-
-# Test cluster access (from control plane)
-ansible k8s_control_plane -m ansible.builtin.command -a "kubectl get nodes"
-```
+See [Kubespray Documentation](https://kubespray.io/) for full setup options.
 
 ## Playbook Reference
 
-### Run specific playbooks
+### Run against specific hosts
 
-**Only base configuration (users, packages, firewall):**
+**All VMs:**
 ```bash
-ansible-playbook playbooks/common.yml
+ansible-playbook playbooks/site.yml
+```
+
+**Only bastion:**
+```bash
+ansible-playbook playbooks/site.yml --limit bastion
+```
+
+**Run individual roles**
+
+**Only setup users:**
+```bashansible-playbook playbooks/common.yml
 ```
 
 ### Run against specific host groups
