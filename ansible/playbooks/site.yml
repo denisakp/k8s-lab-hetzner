@@ -1,10 +1,10 @@
 ---
-# Main site playbook - orchestrates pre-Kubespray setup
-# Executed BEFORE Kubespray to prepare all VMs
+# Main infrastructure setup playbook
+# Sets up universal infrastructure (packages, firewall, users, fail2ban)
+# Does NOT include Kubernetes-specific configuration
 #
-# Workflow:
-# 1. ansible-playbook playbooks/site.yml                      # Run this first
-# 2. ansible-playbook -i inventory/hosts.yml kubespray/cluster.yml  # Then Kubespray
-# 3. ansible-playbook playbooks/post-kubespray-verify.yml     # Verify
+# Usage:
+#   ansible-playbook playbooks/site.yml                    # All VMs
+#   ansible-playbook playbooks/site.yml --limit bastion    # Only bastion
 
 - import_playbook: common.yml

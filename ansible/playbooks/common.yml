@@ -1,7 +1,12 @@
 ---
-# Common configuration for all VMs (base setup)
-- name: Base configuration for all VMs
-  hosts: vms
+# Universal infrastructure setup for all VMs
+# Handles: users, packages, timezone, keyboard, firewall (SSH only), fail2ban
+# Does NOT assume anything about VM purpose (K8s, app server, etc.)
+# 
+# Ubuntu 24.04 required
+
+- name: Infrastructure setup
+  hosts: all
   become: true
   gather_facts: true
   vars_files:
@@ -17,19 +22,18 @@
       tags: always
 
   roles:
-    - user_management   # Create ansible-deploy and zanzibar users
-    - commons          # Common packages, timezone, keyboard
-    - fail2ban         # Brute-force protection
-    - firewalld        # Firewall
+    - user_management   # Create ansible-deploy and zanzibar users (sudo-enabled)
+    - commons          # Packages, timezone, keyboard layout
+    - fail2ban         # SSH brute-force protection
+    - firewalld        # SSH-only firewall (allow external access)
 
   post_tasks:
-    - name: Common setup summary
+    - name: Infrastructure setup summary
       debug:
         msg:
-          - "✅ Base configuration completed successfully"
+          - "✅ Infrastructure setup completed"
           - "System: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}"
           - "Hostname: {{ ansible_facts['hostname'] }}"
-          - "IP Address: {{ ansible_facts['default_ipv4']['address'] }}"
-          - "Users created: ansible-deploy, zanzibar"
+          - "Users: ansible-deploy (limited sudo), zanzibar (full sudo)"
         verbosity: 1
       tags: always
