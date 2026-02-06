@@ -1,0 +1,24 @@
+timezone: UTC
+
+common_packages:
+  - vim
+  - net-tools
+  - curl
+  - wget
+  - tar
+  - rsync
+
+# Fail2Ban configuration
+fail2ban_findtime: "10m"
+fail2ban_bantime: "1d"
+fail2ban_maxretry: 3
+fail2ban_recidive_bantime: "30d"
+
+# Firewall configuration
+firewall_allowed_services:
+  - ssh
+
+firewall_allowed_ports: []
+  # Uncomment and add custom ports as needed:
+  # - "2345/tcp"   # Bastion SSH forwarding
+  # - "8080/tcp"   # Custom services

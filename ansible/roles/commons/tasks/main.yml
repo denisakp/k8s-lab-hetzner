@@ -1,0 +1,34 @@
+- name: Update apt cache and all packages to the latest version
+  ansible.builtin.apt:
+    name: "*"
+    state: latest
+    update_cache: true
+  tags: update
+
+- name: Install common packages
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+  tags: packages
+
+- name: Configure timezone
+  community.general.timezone:
+    name: "{{ timezone }}"
+  tags: timezone
+
+- name: Configure keyboard layout (Ubuntu)
+  ansible.builtin.lineinfile:
+    path: /etc/default/keyboard
+    regexp: '^XKBLAYOUT='
+    line: 'XKBLAYOUT="fr"'
+  notify: update keyboard layout
+  tags: locale
+
+- name: Check Ubuntu version
+  ansible.builtin.command: lsb_release -rs
+  register: ubuntu_version
+  changed_when: false
+
+- name: Print Ubuntu version
+  ansible.builtin.debug:
+    msg: "Ubuntu {{ ubuntu_version.stdout }}"

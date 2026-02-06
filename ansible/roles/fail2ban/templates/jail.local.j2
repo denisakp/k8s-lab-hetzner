@@ -1,0 +1,19 @@
+# Ansible managed - fail2ban jail.local configuration
+# Template: jail.local.j2
+
+[DEFAULT]
+findtime = {{ fail2ban_findtime }}
+bantime = {{ fail2ban_bantime }}
+maxretry = {{ fail2ban_maxretry }}
+
+[sshd]
+enabled  = true
+port     = ssh
+logpath = %(sshd_log)s
+backend = %(sshd_backend)s
+
+[recidive]
+enabled = true
+logpath  = /var/log/fail2ban.log
+banaction = %(banaction_allports)s
+bantime  = {{ fail2ban_recidive_bantime }}

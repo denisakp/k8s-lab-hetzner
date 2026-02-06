@@ -1,0 +1,33 @@
+---
+- name: test playbook for Ubuntu 24-04
+  hosts: all
+  become: true
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+  
+  tasks:
+    - name: Ensure it's Ubuntu 24.04
+      assert:
+        that:
+          - ansible_facts['distribution'] == 'Ubuntu'
+          - ansible_facts['distribution_version'] == '24.04'
+        fail_msg: "This playbook requires Ubuntu 24.04"
+        success_msg: "Ubuntu 24.04 detected ✅"
+    - name: Display system information
+      debug:
+         msg: |
+             Distribution: {{ ansible_facts['distribution'] }}
+             Version: {{ ansible_facts['distribution_version'] }}
+             Architecture: {{ ansible_facts['architecture'] }}
+             Kernel: {{ ansible_facts['kernel'] }}
+             Hostname: {{ ansible_facts['hostname'] }}
+             IP Address: {{ ansible_facts['default_ipv4']['address'] }}
+             MAC Address: {{ ansible_facts['default_ipv4']['macaddress'] }}
+             Python Version: {{ ansible_facts['python_version'] }}
+    - name: Check installed packages
+      package_facts:
+         manager: auto
+    - name: list packages to be installed
+      debug:
+         msg: "{{ common_packages }}"
