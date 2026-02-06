@@ -1,0 +1,29 @@
+- name: Complete configuration for Ubuntu 24-04
+  hosts: all
+  become: true
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+  
+  pre_tasks:
+    - name: verify Ubuntu version
+      assert:
+        that:
+          - ansible_facts['distribution'] == "Ubuntu"
+          - ansible_facts['distribution_major_version'] == "24"
+        fail_msg: "X This playbook requires Ubuntu 24"
+  
+  roles:
+     - commons
+     - fail2ban
+     - firewalld
+  
+  post_tasks:
+    - name: Summary of the installation
+      debug:
+        msg: 
+          - "✅ Installation completed successfully"
+          - "System: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}"
+          - "Hostname: {{ ansible_facts['hostname'] }}"
+          - "IP: {{ ansible_facts['default_ipv4']['address'] }}"
+          - ""

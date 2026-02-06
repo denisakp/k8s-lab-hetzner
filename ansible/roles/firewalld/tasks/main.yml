@@ -1,0 +1,63 @@
+---
+- name: Ensure firewalld is installed
+  ansible.builtin.apt:
+    name: firewalld
+    state: present
+
+- name: Start and enable firewalld
+  ansible.builtin.systemd_service:
+    name: firewalld
+    state: started
+    enabled: true
+
+- name: Verify that the public zone is the default zone
+  ansible.builtin.command: firewall-cmd --get-default-zone
+  register: default_zone
+  changed_when: false
+
+- name: Configure allowed services
+  ansible.posix.firewalld:
+    service: "{{ item }}"
+    permanent: true
+    state: enabled
+    immediate: true
+    zone: public
+  loop: "{{ firewall_allowed_services }}"
+
+- name: Configure allowed ports
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    state: enabled
+    immediate: true
+    zone: public
+  loop: "{{ firewall_allowed_ports | default([], true) }}"
+  when: firewall_allowed_ports is defined and firewall_allowed_ports | length > 0
+
+- name: Block everything else (default in firewalld)
+  ansible.posix.firewalld:
+    zone: public
+    state: enabled
+    permanent: true
+
+- name: Reload firewalld to apply changes
+  ansible.builtin.command: firewall-cmd --reload
+  changed_when: false
+
+- name: Show complete firewall configuration
+  ansible.builtin.command: firewall-cmd --list-all
+  register: firewall_config
+  changed_when: false
+
+- name: Firewall configuration result
+  ansible.builtin.debug:
+    msg: "{{ firewall_config.stdout_lines }}"
+
+- name: Verify open ports
+  ansible.builtin.command: firewall-cmd --list-ports
+  register: open_ports
+  changed_when: false
+
+- name: Verify open ports
+  ansible.builtin.debug:
+    msg: "Open ports: {{ open_ports.stdout if open_ports.stdout else 'No custom ports open' }}"

@@ -1,0 +1,4 @@
+---
+- name: update keyboard layout
+  ansible.builtin.command: setupcon
+  changed_when: false
