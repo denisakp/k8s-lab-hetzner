@@ -1,0 +1,10 @@
+---
+# Main site playbook - orchestrates pre-Kubespray setup
+# Executed BEFORE Kubespray to prepare all VMs
+#
+# Workflow:
+# 1. ansible-playbook playbooks/site.yml                      # Run this first
+# 2. ansible-playbook -i inventory/hosts.yml kubespray/cluster.yml  # Then Kubespray
+# 3. ansible-playbook playbooks/post-kubespray-verify.yml     # Verify
+
+- import_playbook: common.yml

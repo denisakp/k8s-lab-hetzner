@@ -1,0 +1,27 @@
+---
+# Default users to create
+users:
+  ansible_deploy:
+    name: ansible-deploy
+    groups:
+      - sudo
+    shell: /bin/bash
+    sudo_commands:
+      - /usr/bin/apt
+      - /usr/bin/systemctl
+      - /usr/bin/kubeadm
+      - /usr/bin/kubectl
+      - /usr/bin/crictl
+    description: "Ansible deployment user"
+
+  zanzibar:
+    name: zanzibar
+    groups:
+      - sudo
+    shell: /bin/bash
+    sudo_commands: []  # Full sudo access (NOPASSWD: ALL)
+    description: "Management user with full sudo access"
+
+# SSH key distribution
+ssh_key_path: "~/.ssh/id_ed25519.pub"
+ssh_key_lookup_user: "{{ lookup('env', 'USER') }}"

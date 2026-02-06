@@ -1,0 +1,35 @@
+---
+# Common configuration for all VMs (base setup)
+- name: Base configuration for all VMs
+  hosts: vms
+  become: true
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+  
+  pre_tasks:
+    - name: Verify Ubuntu 24.04
+      assert:
+        that:
+          - ansible_facts['distribution'] == "Ubuntu"
+          - ansible_facts['distribution_major_version'] == "24"
+        fail_msg: "This playbook requires Ubuntu 24.04"
+      tags: always
+
+  roles:
+    - user_management   # Create ansible-deploy and zanzibar users
+    - commons          # Common packages, timezone, keyboard
+    - fail2ban         # Brute-force protection
+    - firewalld        # Firewall
+
+  post_tasks:
+    - name: Common setup summary
+      debug:
+        msg:
+          - "✅ Base configuration completed successfully"
+          - "System: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}"
+          - "Hostname: {{ ansible_facts['hostname'] }}"
+          - "IP Address: {{ ansible_facts['default_ipv4']['address'] }}"
+          - "Users created: ansible-deploy, zanzibar"
+        verbosity: 1
+      tags: always

@@ -1,0 +1,89 @@
+---
+- name: Create ansible-deploy user
+  ansible.builtin.user:
+    name: "{{ users.ansible_deploy.name }}"
+    shell: "{{ users.ansible_deploy.shell }}"
+    groups: "{{ users.ansible_deploy.groups }}"
+    append: yes
+    create_home: yes
+    comment: "{{ users.ansible_deploy.description }}"
+
+- name: Create zanzibar user
+  ansible.builtin.user:
+    name: "{{ users.zanzibar.name }}"
+    shell: "{{ users.zanzibar.shell }}"
+    groups: "{{ users.zanzibar.groups }}"
+    append: yes
+    create_home: yes
+    comment: "{{ users.zanzibar.description }}"
+
+- name: Configure sudo for ansible-deploy (limited commands)
+  ansible.builtin.copy:
+    content: |
+      # Ansible deployment user - limited commands
+      ansible-deploy ALL=(ALL) NOPASSWD: /usr/bin/apt, /usr/bin/systemctl, /usr/bin/kubeadm, /usr/bin/kubectl, /usr/bin/crictl
+    dest: /etc/sudoers.d/ansible-deploy
+    mode: '0440'
+    validate: 'visudo -cf %s'
+  tags: sudo
+
+- name: Configure sudo for zanzibar (full access)
+  ansible.builtin.copy:
+    content: |
+      # Management user - full sudo access
+      zanzibar ALL=(ALL) NOPASSWD: ALL
+    dest: /etc/sudoers.d/zanzibar
+    mode: '0440'
+    validate: 'visudo -cf %s'
+  tags: sudo
+
+- name: Create .ssh directories for users
+  ansible.builtin.file:
+    path: "/home/{{ item }}/.ssh"
+    owner: "{{ item }}"
+    group: "{{ item }}"
+    mode: '0700'
+    state: directory
+  loop:
+    - "{{ users.ansible_deploy.name }}"
+    - "{{ users.zanzibar.name }}"
+
+- name: Distribute SSH public key to ansible-deploy
+  ansible.builtin.lineinfile:
+    path: "/home/{{ users.ansible_deploy.name }}/.ssh/authorized_keys"
+    line: "{{ lookup('file', ssh_key_path) }}"
+    create: yes
+    owner: "{{ users.ansible_deploy.name }}"
+    group: "{{ users.ansible_deploy.name }}"
+    mode: '0600'
+  when: ssh_key_path is defined
+
+- name: Distribute SSH public key to zanzibar
+  ansible.builtin.lineinfile:
+    path: "/home/{{ users.zanzibar.name }}/.ssh/authorized_keys"
+    line: "{{ lookup('file', ssh_key_path) }}"
+    create: yes
+    owner: "{{ users.zanzibar.name }}"
+    group: "{{ users.zanzibar.name }}"
+    mode: '0600'
+  when: ssh_key_path is defined
+
+- name: Set correct permissions on authorized_keys
+  ansible.builtin.file:
+    path: "/home/{{ item }}/.ssh/authorized_keys"
+    owner: "{{ item }}"
+    group: "{{ item }}"
+    mode: '0600'
+  loop:
+    - "{{ users.ansible_deploy.name }}"
+    - "{{ users.zanzibar.name }}"
+
+- name: Verify users created successfully
+  ansible.builtin.command: "id {{ item }}"
+  register: user_check
+  failed_when: user_check.rc != 0
+  changed_when: false
+  loop:
+    - "{{ users.ansible_deploy.name }}"
+    - "{{ users.zanzibar.name }}"
+  tags: verify

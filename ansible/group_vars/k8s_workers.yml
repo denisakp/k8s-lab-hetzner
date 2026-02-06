@@ -1,0 +1,13 @@
+---
+# Kubernetes Worker Specific Variables
+# ℹ️ Kubespray configures all K8s-specific network policies via iptables
+# We only manage external access (SSH over fail2ban)
+
+k8s_node_role: "worker"
+
+# Worker-specific limits (for reference)
+kubelet_max_pods: 110
+
+# SSH access only (Kubespray manages internal K8s ports via iptables)
+firewall_allowed_services:
+  - ssh

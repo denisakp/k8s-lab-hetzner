@@ -1,0 +1,98 @@
+---
+- name: Disable swap (required for Kubernetes)
+  block:
+    - name: Check swap status
+      ansible.builtin.shell: swapon --show
+      register: swap_status
+      changed_when: false
+      failed_when: false
+
+    - name: Disable swap
+      ansible.builtin.shell: swapoff -a
+      when: swap_status.stdout_lines | length > 1
+      tags: swap
+
+    - name: Disable swap in fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        regexp: '.*swap.*'
+        state: absent
+      tags: swap
+  tags: swap
+
+- name: Load kernel modules required for Kubernetes
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+    persistent: present
+  loop: "{{ kernel_modules }}"
+  tags: kernel_modules
+  when: kernel_modules is defined
+
+- name: Configure sysctl for Kubernetes networking
+  ansible.builtin.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_set: yes
+    state: present
+    reload: yes
+  loop: "{{ sysctl_settings | dict2items }}"
+  tags: sysctl
+  when: sysctl_settings is defined
+
+- name: Configure firewall for Kubernetes Control Plane
+  block:
+    - name: Add firewall rules for control plane
+      ansible.posix.firewalld:
+        port: "{{ item.port }}"
+        permanent: yes
+        state: enabled
+        immediate: yes
+        zone: public
+      loop: "{{ firewall_allowed_ports }}"
+      when: k8s_node_role == "control-plane" and firewall_allowed_ports is defined
+      tags: firewall
+
+  tags: firewall
+  when: k8s_firewall_enabled | default(true)
+
+- name: Configure firewall for Kubernetes Workers
+  block:
+    - name: Add firewall rules for workers
+      ansible.posix.firewalld:
+        port: "{{ item.port }}"
+        permanent: yes
+        state: enabled
+        immediate: yes
+        zone: public
+      loop: "{{ firewall_allowed_ports }}"
+      when: k8s_node_role == "worker" and firewall_allowed_ports is defined
+      tags: firewall
+
+  tags: firewall
+  when: k8s_firewall_enabled | default(true) and k8s_node_role == "worker"
+
+- name: Verify Kubernetes prerequisites
+  block:
+    - name: Check swap is disabled
+      ansible.builtin.shell: swapon --show
+      register: swap_check
+      failed_when: swap_check.stdout_lines | length > 1
+      changed_when: false
+      tags: verify
+
+    - name: Verify kernel modules loaded
+      ansible.builtin.shell: "lsmod | grep -E 'overlay|br_netfilter'"
+      register: module_check
+      failed_when: module_check.rc != 0
+      changed_when: false
+      tags: verify
+
+    - name: Verify sysctl settings
+      ansible.builtin.shell: "sysctl net.ipv4.ip_forward"
+      register: sysctl_check
+      failed_when: "'1' not in sysctl_check.stdout"
+      changed_when: false
+      tags: verify
+
+  tags: verify

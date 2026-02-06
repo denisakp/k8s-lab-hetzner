@@ -1,0 +1,26 @@
+---
+# ⚠️ DEPRECATED - Kubernetes hardening is now handled by Kubespray
+# 
+# This playbook is kept for reference only. All Kubernetes-specific configurations
+# (swap disable, kernel modules, sysctl tuning, container runtime, CNI) are now
+# managed by Kubespray during cluster.yml execution.
+#
+# Workflow:
+# 1. ansible-playbook playbooks/site.yml              # Base setup (users, firewall, fail2ban)
+# 2. ansible-playbook -i inventory/hosts.yml kubespray/cluster.yml  # Kubespray handles K8s
+# 3. ansible-playbook playbooks/post-kubespray-verify.yml  # Verify deployment
+#
+# To remove this file: rm playbooks/k8s-hardening.yml
+
+
+  post_tasks:
+    - name: K8s hardening summary
+      debug:
+        msg:
+          - "✅ Kubernetes node hardening completed"
+          - "Node role: {{ k8s_node_role }}"
+          - "K8s version: {{ k8s_version }}"
+          - "Swap disabled: {{ disable_swap }}"
+          - "Kernel modules loaded: overlay, br_netfilter"
+        verbosity: 1
+      tags: always
